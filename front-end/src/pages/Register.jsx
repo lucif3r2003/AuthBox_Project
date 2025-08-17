@@ -28,9 +28,9 @@ export default function Register() {
       <form className="form" onSubmit={handleSubmit}>
         <h2>Register</h2>
         {error && <p className="error">{error}</p>}
-        <input type="text" name="fullName" placeholder="Full Name" value={form.fullName} onChange={handleChange} required />
+        <input type="text" name="full_name" placeholder="Full Name" value={form.fullName} onChange={handleChange} required />
         <input type="email" name="email" placeholder="Email" value={form.email} onChange={handleChange} required />
-        <input type="text" name="phoneNumber" placeholder="Phone Number" value={form.phoneNumber} onChange={handleChange} required />
+        <input type="text" name="phone_number" placeholder="Phone Number" value={form.phoneNumber} onChange={handleChange} required />
         <input type="password" name="password" placeholder="Password" value={form.password} onChange={handleChange} required />
         <input type="password" name="confirmPassword" placeholder="Confirm Password" value={form.confirmPassword} onChange={handleChange} required />
         <button type="submit">Register</button>

@@ -19,11 +19,11 @@ public class RegisterService
         if (isDup) return APIResponse<object>.Fail("Email already exists");
         
         // tao user
-        var user = new user();
-        user.email = req.email;
-        user.password_hash = req.password;
-        user.full_name = req.full_name;
-        user.phone_number = req.phone_number;
+        var user = new User();
+        user.Email = req.email;
+        user.PasswordHash = _repo.HashPassword(req.password);
+        user.FullName = req.full_name;
+        user.PhoneNumber = req.phone_number;
         
         _repo.CreateUser(user);
         return APIResponse<object>.Ok("User created");

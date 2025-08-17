@@ -1,47 +1,81 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using Auth_Box.Models;
 using System.Security.Cryptography;
 using System.Text;
 using Auth_Box.Repositories;
+using Microsoft.IdentityModel.Tokens;
 
 namespace Auth_Box.Services;
 
 public class LoginService
 {
+    private readonly IConfiguration _config;
     private readonly UserRepository _repo;
-    public LoginService(UserRepository repo)
+    private readonly RefreshTokenRepository _token;
+    public LoginService(UserRepository repo, IConfiguration config,  RefreshTokenRepository token)
     {
         _repo = repo;
+        _config = config;
+        _token = token;
     }
     
     //Login 
-    public APIResponse<object> Login(string email, string password)
+    public APIResponse<LoginResultDto> Login(string email, string password)
     {
         var user =  _repo.GetUserByEmail(email);
-        if(user == null) return APIResponse<object>.Fail("User not found");
-        if(user.password_hash != HashPassword(password)) return APIResponse<object>.Fail("Wrong password");
-        return APIResponse<object>.Ok(new {user.id, user.email}, "Login successful");
+        if(user == null) return APIResponse<LoginResultDto>.Fail("User not found");
+        if(user.PasswordHash != _repo.HashPassword(password)) return APIResponse<LoginResultDto>.Fail("Wrong password");
+        //gen access token
+        var accessToken = generateToken(user);
+        
+        //gen refresh token 
+        var refreshTokenString = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+
+        var refreshToken = new RefreshToken
+        {
+            UserId = user.Id,
+            Token = refreshTokenString,
+            ExpiresAt = DateTime.UtcNow.AddDays(7) // tuỳ config
+        };
+
+        _token.SaveRefreshToken(refreshToken);
+
+        return APIResponse<LoginResultDto>.Ok(new LoginResultDto
+        {
+            UserId = user.Id,
+            Email = user.Email,
+            AccessToken = accessToken,
+            RefreshToken = refreshTokenString
+        }, "Login successful");
     }
     
-    //logic handle 
 
-    public static string HashPassword(string password)
+    //gen token
+    private string generateToken(User user, int expireMinutes = 15)
     {
-        using (SHA256 sha256 = SHA256.Create())
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var key = Encoding.UTF8.GetBytes(_config["Jwt:Secret"]);
+
+        var claims = new[]
         {
-            // Convert the password string to a byte array
-            byte[] bytes = Encoding.UTF8.GetBytes(password);
-        
-            // Compute the hash
-            byte[] hash = sha256.ComputeHash(bytes);
-        
-            // Convert the hash to a hexadecimal string
-            StringBuilder builder = new StringBuilder();
-            for (int i = 0; i < hash.Length; i++)
-            {
-                builder.Append(hash[i].ToString("x2"));
-            }
-        
-            return builder.ToString();
-        }
+            new Claim("id", user.Id.ToString()),
+            new Claim(JwtRegisteredClaimNames.Email, user.Email),
+            new Claim(ClaimTypes.Role, "User") // hoặc "Admin"
+        };
+
+        var tokenDescriptor = new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(claims),
+            Expires = DateTime.UtcNow.AddMinutes(expireMinutes),
+            SigningCredentials = new SigningCredentials(
+                new SymmetricSecurityKey(key),
+                SecurityAlgorithms.HmacSha256Signature
+            )
+        };
+
+        var token = tokenHandler.CreateToken(tokenDescriptor);
+        return tokenHandler.WriteToken(token);
     }
+    
 }
